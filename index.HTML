@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tebak Suara Misterius</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --dark: #1e293b;
+            --light: #f8fafc;
+        }
+
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+        body {
+            background: linear-gradient(135deg, #1e1e2f 0%, #2d2d44 100%);
+            color: var(--light);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .game-container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 2rem;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        h1 { margin-bottom: 0.5rem; font-size: 1.8rem; }
+
+        /* Progress Bar */
+        .progress-container {
+            background: rgba(255, 255, 255, 0.1);
+            height: 8px;
+            border-radius: 10px;
+            margin: 1.5rem 0;
+            overflow: hidden;
+        }
+
+        #progress-bar {
+            height: 100%;
+            width: 0%;
+            background: var(--primary);
+            transition: width 0.4s ease;
+        }
+
+        /* Audio Controls */
+        .audio-section {
+            margin: 2rem 0;
+        }
+
+        .play-btn {
+            background: var(--primary);
+            border: none;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.2s, background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
+        }
+
+        .play-btn:hover { transform: scale(1.1); background: #4f46e5; }
+        .play-btn:active { transform: scale(0.95); }
+
+        /* Options */
+        .options-grid {
+            display: grid;
+            gap: 10px;
+            margin-top: 2rem;
+        }
+
+        .option {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid transparent;
+            padding: 15px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+            color: white;
+            outline: none;
+        }
+
+        .option:hover:not(:disabled) { background: rgba(255, 255, 255, 0.2); }
+
+        .correct { background: var(--success) !important; border-color: #4ade80; }
+        .wrong { background: var(--danger) !important; border-color: #f87171; }
+
+        /* Result Screen */
+        .hidden { display: none; }
+        
+        .score-display { font-size: 3rem; font-weight: bold; color: var(--primary); }
+
+        .btn-restart {
+            margin-top: 1.5rem;
+            padding: 12px 24px;
+            background: var(--primary);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-container" id="quiz-card">
+        <h1>Tebak Suara 🔊</h1>
+        <p id="question-info">Dengarkan baik-baik...</p>
+        
+        <div class="progress-container">
+            <div id="progress-bar"></div>
+        </div>
+
+        <div class="audio-section">
+            <button class="play-btn" onclick="playAudio()" id="play-trigger">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="white">
+                    <path d="M8 5v14l11-7z"/>
+                </svg>
+            </button>
+            <p style="font-size: 0.8rem; margin-top: 10px; opacity: 0.7;">Klik untuk putar suara</p>
+        </div>
+
+        <div class="options-grid" id="options-container">
+            </div>
+    </div>
+
+    <div class="game-container hidden" id="result-card">
+        <h1>Permainan Selesai!</h1>
+        <p>Skor Akhir Kamu:</p>
+        <div class="score-display" id="final-score">0</div>
+        <p id="score-message"></p>
+        <button class="btn-restart" onclick="restartGame()">Main Lagi</button>
+    </div>
+
+    <script>
+        const quizData = [
+            {
+                audio: "https://www.soundjay.com/buttons/beep-01a.mp3", // Ganti dengan path file kamu
+                options: ["Suara Beep", "Kucing", "Telepon", "Pintu"],
+                correct: 0
+            },
+            {
+                audio: "https://www.soundjay.com/nature/rain-01.mp3",
+                options: ["Angin", "Hujan", "Api Unggun", "Lalu Lintas"],
+                correct: 1
+            },
+            {
+                audio: "https://www.soundjay.com/human/applause-01.mp3",
+                options: ["Hujan", "Gorengan", "Tepuk Tangan", "Ombak"],
+                correct: 2
+            }
+        ];
+
+        let currentIdx = 0;
+        let score = 0;
+        let audioPlayer = new Audio();
+        let canAnswer = true;
+
+        function loadQuestion() {
+            canAnswer = true;
+            const currentQuestion = quizData[currentIdx];
+            const optionsContainer = document.getElementById('options-container');
+            
+            // Update UI
+            document.getElementById('question-info').innerText = `Soal ${currentIdx + 1} dari ${quizData.length}`;
+            document.getElementById('progress-bar').style.width = `${((currentIdx) / quizData.length) * 100}%`;
+            
+            // Set Audio
+            audioPlayer.src = currentQuestion.audio;
+
+            // Generate Buttons
+            optionsContainer.innerHTML = '';
+            currentQuestion.options.forEach((opt, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'option';
+                btn.innerText = opt;
+                btn.onclick = () => checkAnswer(index, btn);
+                optionsContainer.appendChild(btn);
+            });
+        }
+
+        function playAudio() {
+            audioPlayer.play();
+            document.getElementById('play-trigger').style.boxShadow = "0 0 20px var(--primary)";
+            setTimeout(() => {
+                document.getElementById('play-trigger').style.boxShadow = "none";
+            }, 500);
+        }
+
+        function checkAnswer(selectedIdx, btnElement) {
+            if (!canAnswer) return;
+            canAnswer = false;
+            
+            const correctIdx = quizData[currentIdx].correct;
+            const buttons = document.querySelectorAll('.option');
+
+            if (selectedIdx === correctIdx) {
+                btnElement.classList.add('correct');
+                score++;
+            } else {
+                btnElement.classList.add('wrong');
+                buttons[correctIdx].classList.add('correct');
+            }
+
+            // Tunggu 1.5 detik sebelum pindah soal (agar animasi terlihat)
+            setTimeout(() => {
+                currentIdx++;
+                if (currentIdx < quizData.length) {
+                    loadQuestion();
+                } else {
+                    showResult();
+                }
+            }, 1500);
+        }
+
+        function showResult() {
+            document.getElementById('quiz-card').classList.add('hidden');
+            document.getElementById('result-card').classList.remove('hidden');
+            document.getElementById('final-score').innerText = `${score} / ${quizData.length}`;
+            
+            let msg = score === quizData.length ? "Luar Biasa! Telinga kamu tajam!" : "Coba lagi untuk hasil lebih baik!";
+            document.getElementById('score-message').innerText = msg;
+            document.getElementById('progress-bar').style.width = '100%';
+        }
+
+        function restartGame() {
+            currentIdx = 0;
+            score = 0;
+            document.getElementById('quiz-card').classList.remove('hidden');
+            document.getElementById('result-card').classList.add('hidden');
+            loadQuestion();
+        }
+
+        // Inisialisasi game saat load
+        loadQuestion();
+    </script>
+</body>
+</html>
